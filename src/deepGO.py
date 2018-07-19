@@ -96,17 +96,23 @@ def create_args():
 
 def validate(dataiter, sess, encoder, decoder, summary_writer):
     step = 0
-    avgPrec, avgRecall, avgF1 = (np.zeros_like(THRESHOLD_RANGE),
-                                 np.zeros_like(THRESHOLD_RANGE),
-                                 np.zeros_like(THRESHOLD_RANGE)
-                                 )
+    avgPrec, avgRecall, avgF1 = (
+        np.zeros_like(THRESHOLD_RANGE),
+        np.zeros_like(THRESHOLD_RANGE),
+        np.zeros_like(THRESHOLD_RANGE)
+    )
+
     for x, y in dataiter:
         prec, recall, f1 = [], [], []
         for thres in THRESHOLD_RANGE:
             p, r, f, summary = sess.run([decoder.precision, decoder.recall,
                                          decoder.f1score, decoder.summary],
-                                         feed_dict={decoder.ys_: y, encoder.xs_: x,
-                                                    decoder.threshold: [thres]})
+                                         feed_dict={
+                                             decoder.ys_: y,
+                                             encoder.xs_: x,
+                                             decoder.threshold: [thres]
+                                         }
+                                        )
             summary_writer.add_summary(summary, step)
             prec.append(p)
             recall.append(r)
@@ -123,9 +129,11 @@ def validate(dataiter, sess, encoder, decoder, summary_writer):
 
 
 def main(argv):
-    funcs = pd.read_pickle(os.path.join(FLAGS.resources, '{}.pkl'.format(FLAGS.function)))['functions'].values
-    funcs = GODAG.initialize_idmap(funcs, FLAGS.function)
+    funcs = pd.read_pickle(
+        os.path.join(FLAGS.resources, '{}.pkl'.format(FLAGS.function))
+    )['functions'].values
 
+    funcs = GODAG.initialize_idmap(funcs, FLAGS.function)
     log.info('GO DAG initialized. Updated function list-{}'.format(len(funcs)))
     FeatureExtractor.load(FLAGS.resources)
     log.info('Loaded amino acid and ngram mapping data')
@@ -134,31 +142,52 @@ def main(argv):
     modelsavename = 'savedmodels_{}'.format(int(time.time()))
     pretrained = None
     if FLAGS.pretrained != '':
-        pretrained, ngrammap = utils.load_pretrained_embedding(FLAGS.pretrained)
+        pretrained, ngrammap = src.utils.load_pretrained_embedding(FLAGS.pretrained)
         FeatureExtractor.ngrammap = ngrammap
 
     with tf.Session() as sess:
-        valid_dataiter = DataIterator(batchsize=FLAGS.batchsize, size=FLAGS.validationsize,
-                                      dataloader=data, functype=FLAGS.function, featuretype='ngrams')
+        valid_dataiter = DataIterator(
+            batchsize=FLAGS.batchsize,
+            size=FLAGS.validationsize,
+            dataloader=data,
+            functype=FLAGS.function,
+            featuretype='ngrams'
+        )
 
+        print ('[ddatta] valid_dataiter ',
+               valid_dataiter.numfiles ,
+               valid_dataiter.loader.dir)
+        train_iter = DataIterator(
+            batchsize=FLAGS.batchsize,
+            size=FLAGS.trainsize,
+            seqlen=FLAGS.maxseqlen,
+            dataloader=data,
+            numfiles=np.floor((FLAGS.trainsize * FLAGS.batchsize) / 250000),
+            functype=FLAGS.function, featuretype='ngrams'
+        )
 
-        train_iter = DataIterator(batchsize=FLAGS.batchsize, size=FLAGS.trainsize,
-                                  seqlen=FLAGS.maxseqlen, dataloader=data,
-                                  numfiles=np.floor((FLAGS.trainsize * FLAGS.batchsize) / 250000),
-                                  functype=FLAGS.function, featuretype='ngrams')
-
-        encoder = CNNEncoder(vocab_size=len(FeatureExtractor.ngrammap) + 1,
-                             inputsize=train_iter.expectedshape,
-                             pretrained_embedding=pretrained).build()
+        encoder = CNNEncoder(
+            vocab_size=len(FeatureExtractor.ngrammap) + 1,
+            inputsize=train_iter.expectedshape,
+            pretrained_embedding=pretrained
+        ).build()
 
         log.info('built encoder')
-        decoder = HierarchicalGODecoder(funcs, encoder.outputs, FLAGS.function).build(GODAG)
+
+        decoder = HierarchicalGODecoder(
+            funcs,
+            encoder.outputs,
+            FLAGS.function
+        ).build(GODAG)
         log.info('built decoder')
+
         init = tf.global_variables_initializer()
         init.run(session=sess)
         chkpt = tf.train.Saver(max_to_keep=4)
-        train_writer = tf.summary.FileWriter(FLAGS.outputdir + '/train',
-                                          sess.graph)
+        train_writer = tf.summary.FileWriter(
+            FLAGS.outputdir + '/train',
+            sess.graph
+        )
 
         test_writer = tf.summary.FileWriter(FLAGS.outputdir + '/test')
         step = 0
@@ -168,14 +197,21 @@ def main(argv):
         bestthres = 0
         metagraphFlag = True
         log.info('starting epochs')
+
         for epoch in range(FLAGS.num_epochs):
             for x, y in train_iter:
                 if x.shape[0] != y.shape[0]:
-                    raise Exception('invalid, x-{}, y-{}'.format(str(x.shape), str(y.shape)))
+                    raise Exception(
+                        'invalid, x-{}, y-{}'.format(str(x.shape), str(y.shape))
+                    )
 
-                _, loss, summary = sess.run([decoder.train, decoder.loss, decoder.summary],
-                                            feed_dict={decoder.ys_: y, encoder.xs_: x,
-                                                       decoder.threshold: [.3]})
+                _, loss, summary = sess.run(
+                    [decoder.train, decoder.loss, decoder.summary],
+                    feed_dict={
+                        decoder.ys_: y,
+                        encoder.xs_: x,
+                        decoder.threshold: [.3]
+                    })
                 train_writer.add_summary(summary, step)
                 log.info('step-{}, loss-{}'.format(step, round(loss, 2)))
                 step += 1

@@ -285,37 +285,56 @@ class FeatureExtractor():
 
 
 class DataLoader(object):
-    def __init__(self, filename='/groups/fungcat/datasets/current/fasta/AllSeqsWithGO_expanded.tar'):
-    # def __init__(self, filename='/home/sathap1/workspace/bioFunctionPrediction/AllSeqsWithGO_expanded.tar'):
+    def __init__(
+        self,
+        filename='/groups/fungcat/datasets/current/fasta/AllSeqsWithGO_expanded.tar'
+    ):
+        print ('[ddatta] DataLoader  __init__| Filename : ',filename)
+
         self.dir = os.path.isdir(filename)
+        print('[ddatta] is dir ? ', self.dir)
         if self.dir:
             self.tarobj = filename
             self.members = glob.glob(os.path.join(filename, '*'))
         else:
             self.tarobj = tarfile.open(filename)
-            self.members = self.tarobj.getmembers()
-
+            self.members = [fl for fl in self.tarobj.getmembers()
+                            if fl.isfile()]
+        print ('[ddatta]', self.tarobj , self.members , self.tarobj.getnames() )
         self.openfiles = set()
 
     def getmember(self, member):
         """
         return the gzip file obj of member
         """
+        print('[ddatta] Filename  getmember : ', member.name)
+
         log.info('opening file - {}'.format(member.name))
-        if member.name in self.openfiles:
-            return self.getmember(self.members[random.randint(0, len(self.members))])
+        print ('[ddatta] openfiles ' , self.openfiles)
+
+        if member.name in self.openfiles and len(self.openfiles) < (len(self.members) -1):
+            print('[ddatta]  getmember -- recursing' , self.members)
+            return self.getmember(
+                self.members[random.randint(0, len(self.members)-1)]
+            )
 
         self.openfiles.add(member.name)
+        print('[ddatta] openfiles ', self.openfiles)
         if self.dir:
+            print('[ddatta]  Case 1', member)
             fobj = gzip.open(member, 'rt')
         else:
-            fobj = gzip.open(self.tarobj.extractfile(member),
-                              mode='rt')
+            print('[ddatta]  Case 2', member)
+            fobj = gzip.open(
+                self.tarobj.extractfile(member.name),
+                mode='rt')
 
         return (member.name, fobj)
 
     def getrandom(self):
-        return self.getmember(self.members[random.randint(0, len(self.members))])
+        # ipdb.set_trace()
+        print('[ddatta] getrandom',self.members ,len(self.members))
+        return self.getmember(self.members[random.randint(0, len(self.members)-1)])
 
     def close(self):
         if not self.dir:
@@ -347,8 +366,8 @@ class DataIterator(object):
         self.onlyLeafNodes = onlyLeafNodes
         self.autoreset = autoreset
         log.info('only leaf nodes will be used as labels - {}'.format(onlyLeafNodes))
-        self.expectedshape = ((self.maxseqlen - self.ngramsize + 1)
-                              if self.featuretype == 'ngrams' else self.maxseqlen)
+        self.expectedshape = (
+            (self.maxseqlen - self.ngramsize + 1) if self.featuretype == 'ngrams' else self.maxseqlen)
 
         self.featurefunc = getattr(FeatureExtractor, 'to_{}'.format(featuretype))
 
@@ -384,9 +403,6 @@ class DataIterator(object):
 
                 if self.onlyLeafNodes is True:
                     funcs = GODAG.get_leafnodes(funcs)
-                    #if self.limit is not None:
-                        # only predict limit number of functions
-                        #funcs = funcs[:self.limit]
                     ids = [GODAG.get_id(fn) for fn in funcs]
                     labels.append([i for i  in ids  if i != -1])
                 else:
