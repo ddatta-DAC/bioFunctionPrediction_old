@@ -166,11 +166,12 @@ def main(argv):
             functype=FLAGS.function, featuretype='ngrams'
         )
 
-        encoder = CNNEncoder(
-            vocab_size=len(FeatureExtractor.ngrammap) + 1,
-            inputsize=train_iter.expectedshape,
-            pretrained_embedding=pretrained
-        ).build()
+
+
+        encoder = CNNEncoder(vocab_size=len(FeatureExtractor.ngrammap),
+                             inputsize=train_iter.expectedshape,
+                             pretrained_embedding=pretrained).build()
+
 
         log.info('built encoder')
 
