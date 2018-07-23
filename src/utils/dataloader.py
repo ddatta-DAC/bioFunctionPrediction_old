@@ -273,13 +273,15 @@ class FeatureExtractor():
     def load(datadir):
         with open(os.path.join(DATADIR, 'aminoacids.txt'), 'r') as inpf:
             FeatureExtractor.aminoacidmap = {key: (index + 1) for index, key in enumerate(json.load(inpf))}
-            FeatureExtractor.aminoacidmap['<unk>'] = 0  # len(FeatureExtractor.aminoacidmap)
+            # zero is reserved for masking
+            FeatureExtractor.aminoacidmap['<unk>'] = len(FeatureExtractor.aminoacidmap)
             log.info('loaded amino acid map of size-{}'.format(len(FeatureExtractor.aminoacidmap)))
 
         with open(os.path.join(DATADIR, 'ngrams.txt'), 'r') as inpf:
             ngrams = json.load(inpf)
             FeatureExtractor.ngrammap = {key: (index + 1) for index, key in enumerate(ngrams)}
-            FeatureExtractor.ngrammap['<unk>'] = 0  # len(FeatureExtractor.ngrammap)
+            # zero is reserved for masking
+            FeatureExtractor.ngrammap['<unk>'] = len(FeatureExtractor.ngrammap)
             log.info('loaded ngram map of size-{}'.format(len(FeatureExtractor.ngrammap)))
 
 
@@ -297,9 +299,8 @@ class DataLoader(object):
             self.members = glob.glob(os.path.join(filename, '*'))
         else:
             self.tarobj = tarfile.open(filename)
-            self.members = [fl for fl in self.tarobj.getmembers()
-                            if fl.isfile()]
-        print ('[ddatta]', self.tarobj , self.members , self.tarobj.getnames() )
+            self.members = [fl for fl in self.tarobj.getmembers() if fl.isfile()]
+
         self.openfiles = set()
 
     def getmember(self, member):
