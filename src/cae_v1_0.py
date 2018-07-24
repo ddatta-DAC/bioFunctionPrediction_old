@@ -197,7 +197,7 @@ def main(argv):
 			for x, y in train_iter:
 				if x.shape[0] != y.shape[0]:
 					raise Exception('invalid, x-{}, y-{}'.format(str(x.shape), str(y.shape)))
-				
+
 				_, loss = sess.run(
 					[cae_model_obj.train, cae_model_obj.loss],
 					feed_dict={
