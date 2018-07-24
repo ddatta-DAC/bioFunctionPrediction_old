@@ -290,10 +290,8 @@ class DataLoader(object):
         self,
         filename='/groups/fungcat/datasets/current/fasta/AllSeqsWithGO_expanded.tar'
     ):
-        print ('[ddatta] DataLoader  __init__| Filename : ',filename)
 
         self.dir = os.path.isdir(filename)
-        print('[ddatta] is dir ? ', self.dir)
         if self.dir:
             self.tarobj = filename
             self.members = glob.glob(os.path.join(filename, '*'))
@@ -307,33 +305,23 @@ class DataLoader(object):
         """
         return the gzip file obj of member
         """
-        print('[ddatta] Filename  getmember : ', member.name)
-
         log.info('opening file - {}'.format(member.name))
-        print ('[ddatta] openfiles ' , self.openfiles)
-
         if member.name in self.openfiles and len(self.openfiles) < (len(self.members) -1):
-            print('[ddatta]  getmember -- recursing' , self.members)
             return self.getmember(
                 self.members[random.randint(0, len(self.members)-1)]
             )
 
         self.openfiles.add(member.name)
-        print('[ddatta] openfiles ', self.openfiles)
         if self.dir:
-            print('[ddatta]  Case 1', member)
             fobj = gzip.open(member, 'rt')
         else:
-            print('[ddatta]  Case 2', member)
             fobj = gzip.open(
                 self.tarobj.extractfile(member.name),
                 mode='rt')
-
         return (member.name, fobj)
 
     def getrandom(self):
         # ipdb.set_trace()
-        print('[ddatta] getrandom',self.members ,len(self.members))
         return self.getmember(self.members[random.randint(0, len(self.members)-1)])
 
     def close(self):

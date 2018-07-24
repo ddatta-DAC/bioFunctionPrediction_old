@@ -69,7 +69,7 @@ class ConvAutoEncoder(object):
 
 	def init_wts(self):
 		# Weights for Embedding Layer
-		self.embed_w = self.get_variable([self.vocab_size, self.embedding_dim])
+		self.embed_w = self.get_variable([self.vocab_size + 1, self.embedding_dim])
 
 		# Weights and biases for each of the convolutional layer
 		self.conv_w = []
@@ -94,20 +94,26 @@ class ConvAutoEncoder(object):
 
 	def build_input(self):
 		with tf.name_scope('model_input'):
-			self.x = tf.placeholder(dtype=tf.int64, shape= [None, self.maxlen, self.vocab_size], name='x')
+			self.x_input = tf.placeholder(dtype=tf.int64, shape= [None, self.maxlen], name='x')
 		return
 
 	def build_encoder_decoder(self):
 
+		# mask = tf.concat([[0], tf.ones(self.vocab_size)], axis=0)
+		# print('Mask ', mask)
+		# self.embed_w = tf.reshape(mask, shape=[-1, 1]) * self.embed_w
+		print(self.embed_w)
+
 		with tf.name_scope('Encoder'):
-			x = self.x
-			x = tf.cast(x,tf.float32)
-			print(' Embedding Matrix ', self.embed_w.shape)
-			print(' Shape of x ',x.shape)
-			emb_op = tf.einsum('ijk,kl->ijl', x, self.embed_w)
+
+			self.x = tf.cast(self.x_input,tf.int64)
+			self.x = tf.one_hot(self.x,depth=self.vocab_size+1,axis=-1)
+			# print(' Embedding Matrix ', self.embed_w.shape)
+			print(' Shape of x ',self.x.shape)
+			emb_op = tf.einsum('ijk,kl->ijl',self.x, self.embed_w)
+			print(emb_op)
 			self.emb_op = tf.expand_dims(emb_op,axis=3)
 			cur_inp = self.emb_op
-
 			conv_layer_ops = []
 			for i in range(self.num_conv_layers) :
 				_conv_i = tf.nn.conv2d(
@@ -117,7 +123,8 @@ class ConvAutoEncoder(object):
 					padding='SAME'
 				) + self.conv_b[i]
 				conv_i = tf.nn.relu(_conv_i)
-				print(conv_i)
+				# print(conv_i)
+				log.info('[Conv AE] Encoder layer i output shape : {}'.format(conv_i.shape))
 				conv_layer_ops.append(conv_i)
 				cur_inp = conv_i
 
@@ -136,7 +143,7 @@ class ConvAutoEncoder(object):
 						1
 					]
 					op_shape.extend(z)
-				print('Op shape ' ,op_shape)
+				# print('Op shape ' ,op_shape)
 				dec_i = tf.nn.conv2d_transpose(
 					value=conv_layer_ops[i],
 					filter=self.conv_w[i],
@@ -144,13 +151,15 @@ class ConvAutoEncoder(object):
 					strides=_strides,
 					padding="SAME"
 				)
-				print ( 'dec_i ->', dec_i)
+				# print ( 'dec_i ->', dec_i)
+				log.info('[Conv AE] Decoder layer i output shape : {}'.format(dec_i.shape))
 				deconv_layer_ops.append(dec_i)
 
 		dec_op = deconv_layer_ops[-1]
 		cur_op = tf.squeeze(dec_op,axis=-1)
-		print (' cur_op ' , cur_op.shape)
+		# print (' cur_op ' , cur_op.shape)
 		rev_emb_op = tf.einsum('ijk,kl->ijl', cur_op,  tf.transpose(self.embed_w))
+		log.info( '[Conv AE] Final output shape : '+ str(rev_emb_op.shape) )
 		self.final_op = rev_emb_op
 		return
 
@@ -158,10 +167,11 @@ class ConvAutoEncoder(object):
 	def build_train (self):
 		_x = tf.layers.flatten(self.x)
 		_y = tf.layers.flatten(self.final_op)
-		self.loss = tf.losses.mean_squared_error(_x,_y)
+
+		# self.loss = tf.losses.mean_squared_error(_x,_y)
+		self.loss = tf.losses.softmax_cross_entropy(onehot_labels=_x,logits=_y)
 		self.optimizer = tf.train.AdamOptimizer(learning_rate=1e-5)
 		self.train = self.optimizer.minimize(self.loss)
-
 		return
 
 
